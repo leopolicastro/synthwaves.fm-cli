@@ -65,6 +65,46 @@ func friendlyTime(iso string) string {
 	}
 }
 
+func favoriteTrackQueue(items []models.Favorite, selectedID int64) ([]player.Track, int) {
+	tracks := make([]player.Track, 0, len(items))
+	selectedIndex := 0
+	for _, fav := range items {
+		if fav.FavorableType != "Track" {
+			continue
+		}
+		if fav.Favorable.ID == selectedID {
+			selectedIndex = len(tracks)
+		}
+		tracks = append(tracks, player.Track{
+			ID:     fav.Favorable.ID,
+			Title:  fav.Favorable.DisplayName(),
+			Artist: fav.Favorable.ArtistName(),
+		})
+	}
+	return tracks, selectedIndex
+}
+
+func searchTrackQueue(items []searchItem, selectedID int64) ([]player.Track, int) {
+	tracks := make([]player.Track, 0, len(items))
+	selectedIndex := 0
+	for _, item := range items {
+		if item.kind != "Track" {
+			continue
+		}
+		if item.id == selectedID {
+			selectedIndex = len(tracks)
+		}
+		tracks = append(tracks, player.Track{
+			ID:       item.id,
+			Title:    item.title,
+			Artist:   item.artist,
+			Album:    item.album,
+			Duration: item.duration,
+		})
+	}
+	return tracks, selectedIndex
+}
+
 // viewSize is embedded in every view to track available content dimensions.
 type viewSize struct {
 	cWidth  int
@@ -257,7 +297,7 @@ func (v *DashboardView) View() string {
 	return b.String()
 }
 
-func (v *DashboardView) Title() string          { return "Dashboard" }
+func (v *DashboardView) Title() string            { return "Dashboard" }
 func (v *DashboardView) ShortHelp() []key.Binding { return []key.Binding{Keys.Refresh} }
 
 // ---------------------------------------------------------------------------
@@ -693,8 +733,8 @@ func (v *ArtistsView) View() string {
 	return b.String()
 }
 
-func (v *ArtistsView) Title() string            { return "Artists" }
-func (v *ArtistsView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *ArtistsView) Title() string         { return "Artists" }
+func (v *ArtistsView) HasFocusedInput() bool { return v.search.Focused }
 func (v *ArtistsView) ShortHelp() []key.Binding {
 	if v.mode != artistModeList {
 		return nil
@@ -1100,8 +1140,8 @@ func (v *AlbumsView) View() string {
 	return b.String()
 }
 
-func (v *AlbumsView) Title() string            { return "Albums" }
-func (v *AlbumsView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *AlbumsView) Title() string         { return "Albums" }
+func (v *AlbumsView) HasFocusedInput() bool { return v.search.Focused }
 func (v *AlbumsView) ShortHelp() []key.Binding {
 	if v.mode != albumModeList {
 		return nil
@@ -1244,7 +1284,7 @@ func (v *AlbumDetailView) View() string {
 	return b.String()
 }
 
-func (v *AlbumDetailView) Title() string          { return "Album" }
+func (v *AlbumDetailView) Title() string            { return "Album" }
 func (v *AlbumDetailView) ShortHelp() []key.Binding { return []key.Binding{Keys.Back} }
 
 // ---------------------------------------------------------------------------
@@ -1421,8 +1461,8 @@ func (v *TracksView) View() string {
 	return b.String()
 }
 
-func (v *TracksView) Title() string            { return "Tracks" }
-func (v *TracksView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *TracksView) Title() string         { return "Tracks" }
+func (v *TracksView) HasFocusedInput() bool { return v.search.Focused }
 func (v *TracksView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Search, Keys.Enter, Keys.NextPage, Keys.PrevPage}
 }
@@ -1585,8 +1625,8 @@ func (v *PlaylistsView) View() string {
 	return b.String()
 }
 
-func (v *PlaylistsView) Title() string            { return "Playlists" }
-func (v *PlaylistsView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *PlaylistsView) Title() string         { return "Playlists" }
+func (v *PlaylistsView) HasFocusedInput() bool { return v.search.Focused }
 func (v *PlaylistsView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Search, Keys.Enter, Keys.NextPage, Keys.PrevPage}
 }
@@ -1687,11 +1727,8 @@ func (v *FavoritesView) Update(msg tea.Msg) (View, tea.Cmd) {
 				switch favType {
 				case "Track":
 					return v, func() tea.Msg {
-						return PlayTrackMsg{
-							TrackID: f.Favorable.ID,
-							Title:   f.Favorable.DisplayName(),
-							Artist:  f.Favorable.ArtistName(),
-						}
+						tracks, selectedIndex := favoriteTrackQueue(v.items, f.Favorable.ID)
+						return PlayQueueMsg{Tracks: tracks, Index: selectedIndex}
 					}
 				case "Album":
 					return v, func() tea.Msg {
@@ -1823,8 +1860,8 @@ func (v *FavoritesView) View() string {
 	return b.String()
 }
 
-func (v *FavoritesView) Title() string            { return "Favorites" }
-func (v *FavoritesView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *FavoritesView) Title() string         { return "Favorites" }
+func (v *FavoritesView) HasFocusedInput() bool { return v.search.Focused }
 func (v *FavoritesView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Search, Keys.Enter, Keys.NextPage, Keys.PrevPage}
 }
@@ -1984,8 +2021,8 @@ func (v *HistoryView) View() string {
 	return b.String()
 }
 
-func (v *HistoryView) Title() string            { return "History" }
-func (v *HistoryView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *HistoryView) Title() string         { return "History" }
+func (v *HistoryView) HasFocusedInput() bool { return v.search.Focused }
 func (v *HistoryView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Search, Keys.NextPage, Keys.PrevPage}
 }
@@ -2093,7 +2130,7 @@ func (v *RadioView) View() string {
 	return b.String()
 }
 
-func (v *RadioView) Title() string          { return "Radio" }
+func (v *RadioView) Title() string            { return "Radio" }
 func (v *RadioView) ShortHelp() []key.Binding { return []key.Binding{Keys.Enter} }
 
 // ---------------------------------------------------------------------------
@@ -2238,13 +2275,8 @@ func (v *SearchView) Update(msg tea.Msg) (View, tea.Cmd) {
 				switch item.kind {
 				case "Track":
 					return v, func() tea.Msg {
-						return PlayTrackMsg{
-							TrackID:  item.id,
-							Title:    item.title,
-							Artist:   item.artist,
-							Album:    item.album,
-							Duration: item.duration,
-						}
+						tracks, selectedIndex := searchTrackQueue(v.items, item.id)
+						return PlayQueueMsg{Tracks: tracks, Index: selectedIndex}
 					}
 				case "Album":
 					return v, func() tea.Msg {
@@ -2343,8 +2375,8 @@ func (v *SearchView) View() string {
 	return b.String()
 }
 
-func (v *SearchView) Title() string            { return "Search" }
-func (v *SearchView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *SearchView) Title() string         { return "Search" }
+func (v *SearchView) HasFocusedInput() bool { return v.search.Focused }
 func (v *SearchView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Search, Keys.Enter}
 }
@@ -2411,7 +2443,11 @@ func (v *StatsView) View() string {
 	b.WriteString(theme.TitleStyle.Render("LIBRARY"))
 	b.WriteString("\n\n")
 
-	libStats := []struct{ label string; value int; color lipgloss.Color }{
+	libStats := []struct {
+		label string
+		value int
+		color lipgloss.Color
+	}{
 		{"Artists", s.Library.ArtistsCount, theme.ColorHotPink},
 		{"Albums", s.Library.AlbumsCount, theme.ColorNeonCyan},
 		{"Tracks", s.Library.TracksCount, theme.ColorNeonPurple},
@@ -2426,7 +2462,7 @@ func (v *StatsView) View() string {
 
 	// Listening section
 	b.WriteString("\n")
-	b.WriteString(theme.TitleStyle.Render("LISTENING ("+s.Listening.TimeRange+")"))
+	b.WriteString(theme.TitleStyle.Render("LISTENING (" + s.Listening.TimeRange + ")"))
 	b.WriteString("\n\n")
 
 	b.WriteString(fmt.Sprintf("  Plays:  %s  |  Streak: %s days  |  Best: %s days\n",
@@ -2495,7 +2531,7 @@ func (v *StatsView) View() string {
 	return b.String()
 }
 
-func (v *StatsView) Title() string          { return "Stats" }
+func (v *StatsView) Title() string            { return "Stats" }
 func (v *StatsView) ShortHelp() []key.Binding { return []key.Binding{Keys.Refresh} }
 
 // ---------------------------------------------------------------------------
@@ -2730,8 +2766,8 @@ func (v *PlaylistDetailView) View() string {
 	return b.String()
 }
 
-func (v *PlaylistDetailView) Title() string            { return "Playlist" }
-func (v *PlaylistDetailView) HasFocusedInput() bool     { return v.search.Focused }
+func (v *PlaylistDetailView) Title() string         { return "Playlist" }
+func (v *PlaylistDetailView) HasFocusedInput() bool { return v.search.Focused }
 func (v *PlaylistDetailView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Search, Keys.Enter, Keys.Delete, Keys.NextPage, Keys.PrevPage, Keys.Back}
 }
@@ -2852,7 +2888,7 @@ func (v *PublicRadioListView) View() string {
 	return b.String()
 }
 
-func (v *PublicRadioListView) Title() string          { return "Live Radio" }
+func (v *PublicRadioListView) Title() string { return "Live Radio" }
 func (v *PublicRadioListView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Enter, Keys.Back}
 }
@@ -3004,7 +3040,6 @@ func (v *PublicRadioDetailView) View() string {
 	b.WriteString(lipgloss.NewStyle().Foreground(theme.ColorNeonPurple).Render("  " + s.ListenURL))
 	b.WriteString("\n\n")
 
-
 	// Action button
 	if v.isPlayingThisStation() {
 		stopBtn := lipgloss.NewStyle().
@@ -3036,7 +3071,7 @@ func (v *PublicRadioDetailView) isPlayingThisStation() bool {
 	return cur != nil && cur.Album == v.station.Name && v.player.IsPlaying()
 }
 
-func (v *PublicRadioDetailView) Title() string          { return "Station" }
+func (v *PublicRadioDetailView) Title() string { return "Station" }
 func (v *PublicRadioDetailView) ShortHelp() []key.Binding {
 	return []key.Binding{Keys.Enter, Keys.Back}
 }
