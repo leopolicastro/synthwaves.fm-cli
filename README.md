@@ -12,13 +12,29 @@ A terminal client for [synthwaves.fm](https://synthwaves.fm) -- browse your musi
 
 ## Install
 
+### Homebrew
+
+First, add the tap (one-time setup):
+
+```
+brew tap leopolicastro/tap
+```
+
+Then install:
+
+```
+brew install synthwaves
+```
+
+### Go
+
 Requires Go 1.26+.
 
 ```
 go install github.com/leopolicastro/synthwaves.fm-cli@latest
 ```
 
-Or build from source:
+### From source
 
 ```
 git clone https://github.com/leopolicastro/synthwaves.fm-cli.git
@@ -99,6 +115,35 @@ secret_key = "your-secret-key"
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss) -- Terminal styling
 - [Huh](https://github.com/charmbracelet/huh) -- Interactive forms
 - [Beep](https://github.com/gopxl/beep) -- Audio playback
+
+## Releasing a new version
+
+Releases are automated with GitHub Actions and GoReleaser.
+
+### One-time setup
+
+Add a `HOMEBREW_TAP_TOKEN` repository secret in GitHub with write access to `leopolicastro/homebrew-tap`.
+
+### Release flow
+
+1. Tag the new version and push it:
+
+```
+git tag v0.X.Y
+git push github v0.X.Y
+```
+
+2. GitHub Actions will:
+
+- build release archives for macOS and Linux
+- publish the GitHub release
+- update `Formula/synthwaves.rb` in `leopolicastro/homebrew-tap`
+
+3. Upgrade locally:
+
+```
+brew upgrade synthwaves
+```
 
 ## License
 
