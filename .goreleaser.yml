@@ -18,8 +18,16 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
     ldflags:
       - -s -w -X github.com/leo/synthwaves-cli/cmd.Version={{.Version}}
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
 
 archives:
   - formats:
