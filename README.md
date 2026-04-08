@@ -118,11 +118,17 @@ secret_key = "your-secret-key"
 
 ## Releasing a new version
 
-Releases are automated with GitHub Actions and GoReleaser.
+Builds and releases are automated with GitHub Actions and GoReleaser.
 
 ### One-time setup
 
 Add a `HOMEBREW_TAP_TOKEN` repository secret in GitHub with write access to `leopolicastro/homebrew-tap`.
+
+### Automation
+
+Every merge to `main` runs a snapshot build.
+
+Tagged pushes publish a release and update Homebrew.
 
 ### Release flow
 
