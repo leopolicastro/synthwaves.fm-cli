@@ -6,13 +6,16 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   build-main:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
