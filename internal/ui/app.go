@@ -29,6 +29,17 @@ type InputFocuser interface {
 	HasFocusedInput() bool
 }
 
+// Activatable is optionally implemented by routes that need a hook when they
+// become the active top-level section again.
+type Activatable interface {
+	OnActivate() tea.Cmd
+}
+
+// Refreshable is optionally implemented by routes with an explicit refresh key.
+type Refreshable interface {
+	Refresh() tea.Cmd
+}
+
 // ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
@@ -54,10 +65,10 @@ type PlayQueueMsg struct {
 
 // PlayStreamMsg plays a direct stream URL (e.g., Icecast radio).
 type PlayStreamMsg struct {
-	URL      string
-	Title    string
-	Artist   string
-	Album    string
+	URL    string
+	Title  string
+	Artist string
+	Album  string
 }
 
 type TrackPlayingMsg struct{}
@@ -102,6 +113,8 @@ type App struct {
 	activeView     View
 	viewStack      []View
 	sidebarFocused bool
+	routes         map[NavSection]View
+	currentSection NavSection
 
 	width  int
 	height int
@@ -135,8 +148,36 @@ func NewApp(client *api.Client) *App {
 		statusBar:      components.NewStatusBar(),
 		toast:          components.NewToast(),
 		progressBar:    pb,
+		routes:         make(map[NavSection]View),
 		sidebarFocused: true,
 	}
+}
+
+func activateView(v View) tea.Cmd {
+	if route, ok := v.(Activatable); ok {
+		return route.OnActivate()
+	}
+	return nil
+}
+
+func (a *App) syncViewSize(v View) View {
+	if v == nil || !a.ready {
+		return v
+	}
+	updated, _ := v.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
+	return updated
+}
+
+func (a *App) routeForSection(section NavSection) (View, bool) {
+	if view, ok := a.routes[section]; ok {
+		return view, false
+	}
+	view := a.createViewForSection(section)
+	if view != nil {
+		a.routes[section] = view
+		return view, true
+	}
+	return nil, false
 }
 
 func (a *App) Init() tea.Cmd {
@@ -310,6 +351,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.sidebarFocused = !a.sidebarFocused
 			a.nav.Focused = a.sidebarFocused
 			return a, nil
+		case key.Matches(msg, Keys.Refresh) && !a.sidebarFocused && !a.isInputActive():
+			if route, ok := a.activeView.(Refreshable); ok {
+				return a, route.Refresh()
+			}
+			return a, nil
 		case key.Matches(msg, Keys.Back) && !a.isInputActive():
 			if !a.sidebarFocused && len(a.viewStack) > 0 {
 				a.activeView = a.viewStack[len(a.viewStack)-1]
@@ -379,13 +425,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.activeView != nil {
 			a.viewStack = append(a.viewStack, a.activeView)
 		}
-		a.activeView = msg.View
+		a.activeView = a.syncViewSize(msg.View)
 		a.sidebarFocused = false
 		a.nav.Focused = false
 		return a, a.activeView.Init()
 
 	case ReplaceViewMsg:
-		a.activeView = msg.View
+		a.activeView = a.syncViewSize(msg.View)
 		a.viewStack = nil
 		a.sidebarFocused = false
 		a.nav.Focused = false
@@ -399,13 +445,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case components.NavSelectMsg:
-		view := a.createViewForSection(NavSection(msg.Key))
+		section := NavSection(msg.Key)
+		view, isNew := a.routeForSection(section)
 		if view != nil {
-			a.activeView = view
+			a.activeView = a.syncViewSize(view)
 			a.viewStack = nil
+			a.currentSection = section
 			a.sidebarFocused = false
 			a.nav.Focused = false
-			return a, a.activeView.Init()
+			if isNew {
+				return a, a.activeView.Init()
+			}
+			return a, activateView(a.activeView)
 		}
 
 	case components.ToastMsg:
@@ -456,14 +507,7 @@ func (a *App) View() string {
 	} else {
 		content = a.renderWelcome()
 	}
-	content = theme.ContentStyle.Width(contentWidth).Render(content)
-
-	main := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
-
 	toastView := a.toast.View()
-	if toastView != "" {
-		main = lipgloss.JoinVertical(lipgloss.Left, toastView, main)
-	}
 
 	nowPlaying := a.renderNowPlaying()
 
@@ -471,6 +515,28 @@ func (a *App) View() string {
 	a.statusBar.Breadcrumbs = a.getBreadcrumbs()
 	a.statusBar.KeyHints = a.getKeyHints()
 	bar := a.statusBar.View()
+
+	contentHeight := a.height - lipgloss.Height(bar)
+	if nowPlaying != "" {
+		contentHeight -= lipgloss.Height(nowPlaying)
+	}
+	if toastView != "" {
+		contentHeight -= lipgloss.Height(toastView)
+	}
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	content = theme.ContentStyle.
+		Width(contentWidth).
+		Height(contentHeight).
+		MaxHeight(contentHeight).
+		Render(content)
+
+	main := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
+	if toastView != "" {
+		main = lipgloss.JoinVertical(lipgloss.Left, toastView, main)
+	}
 
 	if nowPlaying != "" {
 		return lipgloss.JoinVertical(lipgloss.Left, main, nowPlaying, bar)
